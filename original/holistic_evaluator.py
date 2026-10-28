@@ -2,6 +2,7 @@ import gradio as gr
 import pandas as pd
 from collections import defaultdict
 from dotenv import load_dotenv
+from html import escape
 
 from evaluation.eval import evaluate_all_retrieval, evaluate_all_answers
 
@@ -74,7 +75,21 @@ def format_metric_html(
         <div style="font-size: 28px; font-weight: bold; color: {color};">{value_str}</div>
     </div>
     """
+def format_context(context):
+    result = "<h2 style='color: #ff7800;'>Relevant Context</h2>\n\n"
+    for rank, doc in enumerate(context, start=1):
+        source = escape(str(doc.metadata.get("source", "Unknown")))
+        content = escape(doc.page_content)
 
+        result += f"""
+        <div style="margin-bottom: 20px;">
+            <strong style="color: #ff7800;">
+                Chunk {rank} — Source: {source}
+            </strong>
+            <div style="white-space: pre-wrap;">{content}</div>
+        </div>
+        """
+    return result
 
 def run_retrieval_evaluation(progress=gr.Progress()):
     """Run retrieval evaluation and yield updates."""
@@ -130,8 +145,10 @@ def run_answer_evaluation(progress=gr.Progress()):
     total_relevance = 0.0
     category_accuracy = defaultdict(list)
     count = 0
-    all_feedback = ""
-    
+    all_feedback = []
+    question_context = []
+
+    #for test, result, generated_answer, retrieved_docs, prog_value in evaluate_all_answers():
     for test, result, prog_value in evaluate_all_answers():
         count += 1
         total_accuracy += result.accuracy
@@ -143,8 +160,13 @@ def run_answer_evaluation(progress=gr.Progress()):
         # Update progress bar only
         progress(prog_value, desc=f"Evaluating test {count}...")
 
-
-
+        # we need to add test question, answer feedback and scores(from result) 
+        #
+        # print("\n=== ANSWER GOING INTO UI TABLE ===", flush=True)
+        # print("Question:", test.question, flush=True)
+        # print("Answer:", generated_answer, flush=True)
+        # print("Judge feedback:", result.feedback, flush=True)
+        #
     # Calculate final averages
     avg_accuracy = total_accuracy / count
     avg_completeness = total_completeness / count
@@ -170,6 +192,12 @@ def run_answer_evaluation(progress=gr.Progress()):
 
     df = pd.DataFrame(category_data)
 
+    #df_feedback = pd.DataFrame(all_feedback)
+    
+
+    #df_context = pd.DataFrame(question_context)
+
+    # return final_html, df, df_feedback, df_context
     return final_html, df
 
 
@@ -220,7 +248,21 @@ def main():
                     y_lim=[1, 5],
                     height=400,
                 )
-
+        # with gr.Row():
+        #     #answer_feedback = gr.Markdown("## 💬 Answer Feedback")
+        #     answer_feedback_table = gr.DataFrame(
+        #         headers = ["Question", "Sample Answer", "Generated Answer", "Feedback", "Accuracy", "Completeness", "Relevance"],
+        #         wrap=True,
+        #         max_height=500
+        #     )
+        # with gr.Row():
+        #     #answer_feedback = gr.Markdown("## 💬 Answer Feedback")
+        #     retrieved_docs_table = gr.DataFrame(
+        #         headers = ["Question", "retreived_docs"],
+        #         datatype=["str", "html"],
+        #         wrap=True,
+        #         max_height=1000
+        #     )
         # Wire up the evaluations
         retrieval_button.click(
             fn=run_retrieval_evaluation,
@@ -229,7 +271,8 @@ def main():
 
         answer_button.click(
             fn=run_answer_evaluation,
-            outputs=[answer_metrics, answer_chart],
+            # outputs=[answer_metrics, answer_chart, answer_feedback_table, retrieved_docs_table],
+            outputs = [answer_metrics, answer_chart]
         )
 
     app.launch(inbrowser=True)

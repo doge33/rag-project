@@ -2,8 +2,8 @@ import json
 from pathlib import Path
 from pydantic import BaseModel, Field
 
-#TEST_FILE = str(Path(__file__).parent / "tests.jsonl")
-TEST_FILE = str(Path(__file__).parent.parent.parent / "holistic.jsonl")
+TEST_FILE = str(Path(__file__).parent / "tests.jsonl")
+#TEST_FILE = str(Path(__file__).parent.parent.parent / "holistic.jsonl")
 
 class TestQuestion(BaseModel):
     """A test question with expected keywords and reference answer."""

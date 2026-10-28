@@ -10,8 +10,10 @@ from pro_implementation.answer import answer_question, fetch_context
 
 load_dotenv(override=True)
 
-MODEL = "gpt-4.1-nano"
+#MODEL = "gpt-4.1-nano"
+MODEL = "gpt-5-mini"
 db_name = "vector_db"
+
 
 
 class RetrievalEval(BaseModel):
@@ -127,14 +129,20 @@ def evaluate_answer(test: TestQuestion) -> tuple[AnswerEval, str, list]:
     Returns:
         Tuple of (AnswerEval object, generated_answer string, retrieved_docs list)
     """
+
+    print(f"START answering: {test.question}", flush=True)
+
     # Get RAG response using shared answer module
     generated_answer, retrieved_docs = answer_question(test.question)
+    #print(f"Inside evaluate_answer. Generated_answer: {generated_answer}")
+
+    print("FINISHED answering; START judging", flush=True)
 
     # LLM judge prompt
     judge_messages = [
         {
             "role": "system",
-            "content": "You are an expert evaluator assessing the quality of answers. Evaluate the generated answer by comparing it to the reference answer. Only give 5/5 scores for perfect answers.",
+            "content": "You are an expert evaluator assessing the quality of answers. Evaluate the generated answer by comparing it to the reference answer, with reference to the retrieved documents. Only give 5/5 scores for perfect answers.",
         },
         {
             "role": "user",
@@ -144,6 +152,9 @@ def evaluate_answer(test: TestQuestion) -> tuple[AnswerEval, str, list]:
 Generated Answer:
 {generated_answer}
 
+Retrieved Documents:
+{retrieved_docs}
+
 Reference Answer:
 {test.reference_answer}
 
@@ -152,7 +163,10 @@ Please evaluate the generated answer on three dimensions:
 2. Completeness: How thoroughly does it address all aspects of the question, covering all the information from the reference answer?
 3. Relevance: How well does it directly answer the specific question asked, giving no additional information?
 
-Provide detailed feedback and scores from 1 (very poor) to 5 (ideal) for each dimension. If the answer is wrong, then the accuracy score must be 1.""",
+Provide detailed feedback and scores from 1 (very poor) to 5 (ideal) for each dimension. If the answer is wrong, then the accuracy score must be 1.
+Make sure your feedback correctly addresses the issues with the generated answer and do not make up any information that is not in the generated answer.
+Keep in mind that the generated answer is a response to the question, not a response to the reference answer. If the generated answer mentions examples that are not in the reference answer but still align with the retrieved documents and correctly answers the question, then it MAY still be valid. 
+""",
         },
     ]
 
@@ -161,7 +175,8 @@ Provide detailed feedback and scores from 1 (very poor) to 5 (ideal) for each di
     #completion is from litellm(the provider-agnostic OpenAI-shaped API)
     #litellm's completion lets you use response_format where you pass in pydantic object and force the reply to come back in json
     # openai chat completion can do this too but you need to parse it separatly
-
+    print("FINISHED judging", flush=True)
+    
     answer_eval = AnswerEval.model_validate_json(judge_response.choices[0].message.content)
 
     return answer_eval, generated_answer, retrieved_docs
@@ -183,9 +198,17 @@ def evaluate_all_answers():
     total_tests = len(tests)
     for index, test in enumerate(tests):
         result = evaluate_answer(test)[0]
-        progress = (index + 1) / total_tests
-        yield test, result, progress
+        #result, generated_answer, retrieved_docs = evaluate_answer(test) #this is only the AnswerEval object-feedback + 3 scores
+        #generated_answer = evaluate_answer(test)[1] #this is the generated answer
 
+        # print(f"\n\nevaluating question{index+1}")
+        # print("\n=== ANSWER SENT TO JUDGE ===", flush=True)
+        # print("Question:", test.question, flush=True)
+        # print("Answer:", generated_answer, flush=True)
+        #retrieved_docs = evaluate_answer(test)[2] #this is the retrieved docs
+        progress = (index + 1) / total_tests
+        #yield test, result, generated_answer, retrieved_docs, progress
+        yield test, result, progress
 
 def run_cli_evaluation(test_number: int):
     """Run evaluation for a specific test (async helper for CLI)."""
